@@ -151,7 +151,7 @@
         .usage-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .usage-badge { background: #dcfce7; color: #15803d; padding: 4px 12px; border-radius: 50px; font-size: 0.7rem; font-weight: bold; }
         .usage-bar-bg { background: #e2e8f0; height: 10px; border-radius: 50px; margin: 15px 0; overflow: hidden; }
-        .usage-bar-fill { background: #6366f1; height: 100%; border-radius: 50px; transition: 1.5s ease; }
+        .usage-bar-fill { background: #6366f1; height: 100%; border-radius: 50px; transition: 1.5s ease; width: 0%; }
         .usage-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
         .u-item { background: #fff; padding: 15px; border-radius: 15px; border: 1px solid #f1f5f9; }
         .u-item small { color: #64748b; font-size: 0.7rem; display: block; margin-bottom: 5px; }
@@ -272,14 +272,14 @@
 <div class="usage-title-box"><i class="fas fa-check-circle" style="color: #22c55e;"></i> Client Found <small style="opacity: 0.7;">Data retrieved successfully</small></div>
 </div>
 <h2 style="font-family: 'Orbitron'; margin: 0; font-size: 1.5rem;">Client Checker</h2>
-<p style="font-size: 0.8rem; color: #64748b; margin-top: 5px;">Enter your Config to check status</p>
-<div class="usage-area-box"><i class="fas fa-shield-alt" style="color: #94a3b8; margin-right: 10px;"></i> <input type="text" id="usage-config" placeholder="Enter Your Config..." /> <button class="btn-check-blue" onclick="checkDataUsage()"><i class="fas fa-search"></i></button></div>
+<p style="font-size: 0.8rem; color: #64748b; margin-top: 5px;">Enter your Username to check status</p>
+<div class="usage-area-box"><i class="fas fa-shield-alt" style="color: #94a3b8; margin-right: 10px;"></i> <input type="text" id="usage-config" placeholder="Enter Username (e.g. nadun)..." /> <button class="btn-check-blue" onclick="checkDataUsage()"><i class="fas fa-search"></i></button></div>
 <div id="usage-output" class="hidden">
 <div class="usage-status-card">
 <div class="usage-header"><b style="font-size: 1rem; color: #1e293b;">Account Usage</b><span class="usage-badge" id="u-status">ACTIVE</span></div>
 <div style="display: flex; justify-content: space-between; font-size: 0.8rem;"><span>Data Usage</span><b id="u-data-text">0.00 / 0 GB</b></div>
 <div class="usage-bar-bg">
-<div class="usage-bar-fill" id="u-bar" style="width: 0%;"></div>
+<div class="usage-bar-fill" id="u-bar"></div>
 </div>
 <div class="usage-grid">
 <div class="u-item"><small><i class="far fa-calendar-alt"></i> Remaining</small><b id="u-rem">0 days</b></div>
@@ -405,20 +405,46 @@
         if(id === 'orders') renderOrders();
     }
 
-    function checkDataUsage() {
-        const config = document.getElementById('usage-config').value;
-        if(!config) return alert("Please enter email!");
+    // NOVA LINK API INTEGRATION WITH PROXY
+    async function checkDataUsage() {
+        const username = document.getElementById('usage-config').value;
+        if(!username) return alert("Username එක ඇතුළත් කරන්න!");
+        
         const btn = document.querySelector('.btn-check-blue');
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-        setTimeout(() => {
-            document.getElementById('usage-alert').classList.remove('hidden');
-            document.getElementById('usage-output').classList.remove('hidden');
-            document.getElementById('u-data-text').innerText = "120.52 / 500 GB";
-            document.getElementById('u-bar').style.width = "24%";
-            document.getElementById('u-rem').innerText = "15 days";
-            document.getElementById('u-exp').innerText = "1/31/2026";
+
+        const apiKey = "hyper_k8z2p9v5r3q1w7";
+        const targetUrl = `https://usageapi.novalink.lk:5003/usage?user=${username}&key=${apiKey}`;
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+
+        try {
+            const response = await fetch(proxyUrl);
+            const result = await response.json();
+            const resData = JSON.parse(result.contents);
+
+            if(resData && resData.success) {
+                const data = resData.data;
+                document.getElementById('usage-alert').classList.remove('hidden');
+                document.getElementById('usage-output').classList.remove('hidden');
+                
+                const usageGB = (data.usage / (1024**3)).toFixed(2);
+                document.getElementById('u-data-text').innerText = `${usageGB} GB Used`;
+                document.getElementById('u-status').innerText = data.status.toUpperCase();
+                
+                let percent = Math.min((usageGB / 200) * 100, 100);
+                document.getElementById('u-bar').style.width = percent + "%";
+                
+                document.getElementById('u-rem').innerText = data.remaining;
+                document.getElementById('u-exp').innerText = data.expiry === 0 ? "No Expiry" : data.expiry;
+            } else {
+                alert("Client Found වුණේ නැත! Username එක පරීක්ෂා කරන්න.");
+            }
+        } catch (error) {
+            console.error(error);
+            alert("API connection failed.");
+        } finally {
             btn.innerHTML = '<i class="fas fa-search"></i>';
-        }, 1000);
+        }
     }
 
     function toggleAuth() { isLoginMode = !isLoginMode; showAuthMode(isLoginMode ? 'login' : 'reg'); }
@@ -492,7 +518,6 @@
         const pkg = document.getElementById('p-pkg').value;
         const date = new Date().toLocaleString();
         database.ref('orders/').push({ user: session.email, name: session.name, plan: activePlan, pkg, date }).then(() => {
-            // Updated WhatsApp message format
             const msg = `*Hyper V2Ray Order!*%0A%0ACustomer: ${session.name}%0APlan: ${activePlan}%0APackage: ${pkg}%0ADate: ${date}%0A%0A*User Email: ${session.email}*%0A%0A_I have completed the payment. Sending receipt now._`;
             window.open(`https://wa.me/94766893639?text=${msg}`);
             location.reload();
