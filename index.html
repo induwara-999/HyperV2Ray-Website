@@ -405,21 +405,62 @@
         if(id === 'orders') renderOrders();
     }
 
-    function checkDataUsage() {
-        const config = document.getElementById('usage-config').value;
-        if(!config) return alert("Please enter email!");
+    // NOVA LINK API INTEGRATION START
+    async function checkDataUsage() {
+        const input = document.getElementById('usage-config').value;
+        if(!input) return alert("Please enter Config or Username!");
+
+        // Extract Username from Config string if present (e.g., #username or @email)
+        let username = "";
+        if (input.includes("#")) {
+            username = input.split("#").pop().trim();
+        } else if (input.includes("@")) {
+            username = input.split("@").pop().split(":")[0];
+        } else {
+            username = input;
+        }
+
         const btn = document.querySelector('.btn-check-blue');
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-        setTimeout(() => {
-            document.getElementById('usage-alert').classList.remove('hidden');
-            document.getElementById('usage-output').classList.remove('hidden');
-            document.getElementById('u-data-text').innerText = "120.52 / 500 GB";
-            document.getElementById('u-bar').style.width = "24%";
-            document.getElementById('u-rem').innerText = "15 days";
-            document.getElementById('u-exp').innerText = "1/31/2026";
+
+        const apiKey = "hyper_k8z2p9v5r3q1w7";
+        const targetUrl = `https://usageapi.novalink.lk:5003/usage?user=${username}&key=${apiKey}`;
+        
+        // Using corsproxy.io to bypass CORS issues on Port 5003
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+
+        try {
+            const response = await fetch(proxyUrl);
+            const dataJson = await response.json();
+
+            if(dataJson && dataJson.success) {
+                const data = dataJson.data;
+                document.getElementById('usage-alert').classList.remove('hidden');
+                document.getElementById('usage-output').classList.remove('hidden');
+                
+                // Convert bytes to GB
+                const usageGB = (data.usage / (1024**3)).toFixed(2);
+                
+                document.getElementById('u-data-text').innerText = `${usageGB} GB / Unlimited`;
+                document.getElementById('u-status').innerText = data.status.toUpperCase();
+                
+                // Progress Bar (Arbitrary 100GB target for visualization)
+                let percent = Math.min((usageGB / 100) * 100, 100);
+                document.getElementById('u-bar').style.width = percent + "%";
+                
+                document.getElementById('u-rem').innerText = data.remaining;
+                document.getElementById('u-exp').innerText = data.expiry === 0 ? "No Expiry" : data.expiry;
+            } else {
+                alert("Client Found වුණේ නැත! Username එක පරීක්ෂා කරන්න.");
+            }
+        } catch (error) {
+            console.error("API Error:", error);
+            alert("සම්බන්ධතාවය අසාර්ථක විය!");
+        } finally {
             btn.innerHTML = '<i class="fas fa-search"></i>';
-        }, 1000);
+        }
     }
+    // NOVA LINK API INTEGRATION END
 
     function toggleAuth() { isLoginMode = !isLoginMode; showAuthMode(isLoginMode ? 'login' : 'reg'); }
     function showAuthMode(mode) {
@@ -492,7 +533,6 @@
         const pkg = document.getElementById('p-pkg').value;
         const date = new Date().toLocaleString();
         database.ref('orders/').push({ user: session.email, name: session.name, plan: activePlan, pkg, date }).then(() => {
-            // Updated WhatsApp message format
             const msg = `*Hyper V2Ray Order!*%0A%0ACustomer: ${session.name}%0APlan: ${activePlan}%0APackage: ${pkg}%0ADate: ${date}%0A%0A*User Email: ${session.email}*%0A%0A_I have completed the payment. Sending receipt now._`;
             window.open(`https://wa.me/94766893639?text=${msg}`);
             location.reload();
