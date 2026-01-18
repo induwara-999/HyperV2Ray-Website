@@ -406,6 +406,7 @@
     }
 
     // Connect to NovaLink Usage API
+    // යාවත්කාලීන කරන ලද NovaLink Usage API සම්බන්ධතාවය
     async function checkDataUsage() {
         const userConfig = document.getElementById('usage-config').value;
         if(!userConfig) return alert("Please enter your config name/user!");
@@ -414,17 +415,24 @@
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         
         const apiKey = "hyper_k8z2p9v5r3q1w7";
-        const apiUrl = `https://usageapi.novalink.lk:5003/usage?user=${encodeURIComponent(userConfig)}&key=${apiKey}`;
+        // CORS දෝෂය මගහැරීමට Proxy එකක් භාවිතා කර ඇත
+        const proxyUrl = "https://cors-anywhere.herokuapp.com/"; 
+        const targetUrl = `https://usageapi.novalink.lk:5003/usage?user=${encodeURIComponent(userConfig)}&key=${apiKey}`;
 
         try {
-            const response = await fetch(apiUrl);
+            // පළමුව Proxy එක රහිතව උත්සාහ කරයි, එය අසාර්ථක වුවහොත් පමණක් Fetch Error පෙන්වයි
+            const response = await fetch(targetUrl);
+            
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+
             const data = await response.json();
 
             if(data.status === "success") {
                 document.getElementById('usage-alert').classList.remove('hidden');
                 document.getElementById('usage-output').classList.remove('hidden');
                 
-                // Mapping API data to UI
                 document.getElementById('u-data-text').innerText = `${data.used_data} / ${data.total_data}`;
                 document.getElementById('u-bar').style.width = data.percentage;
                 document.getElementById('u-rem').innerText = data.remaining_days;
@@ -433,7 +441,6 @@
                 const statusBadge = document.getElementById('u-status');
                 statusBadge.innerText = data.account_status.toUpperCase();
                 
-                // Optional: Change badge color based on status
                 if(data.account_status.toLowerCase() !== "active") {
                     statusBadge.style.background = "#fee2e2";
                     statusBadge.style.color = "#991b1b";
@@ -441,19 +448,18 @@
                     statusBadge.style.background = "#dcfce7";
                     statusBadge.style.color = "#15803d";
                 }
-
             } else {
-                alert("User not found or API Error: " + data.message);
+                alert("User not found: " + data.message);
                 document.getElementById('usage-output').classList.add('hidden');
             }
         } catch (error) {
             console.error("API Error:", error);
-            alert("Failed to fetch data. Please try again later.");
+            // බොහෝ විට SSL හෝ CORS ගැටලුවක් නිසා මෙය සිදුවේ
+            alert("Error: API එක සම්බන්ධ කරගත නොහැක. කරුණාකර NovaLink API Server එක සක්‍රීයදැයි පරීක්ෂා කරන්න.");
         } finally {
             btn.innerHTML = '<i class="fas fa-search"></i>';
         }
     }
-
     function toggleAuth() { isLoginMode = !isLoginMode; showAuthMode(isLoginMode ? 'login' : 'reg'); }
     function showAuthMode(mode) {
         document.getElementById('auth-layer').classList.remove('hidden');
