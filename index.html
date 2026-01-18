@@ -405,62 +405,54 @@
         if(id === 'orders') renderOrders();
     }
 
-    // NOVA LINK API INTEGRATION START
+    // Connect to NovaLink Usage API
     async function checkDataUsage() {
-        const input = document.getElementById('usage-config').value;
-        if(!input) return alert("Please enter Config or Username!");
-
-        // Extract Username from Config string if present (e.g., #username or @email)
-        let username = "";
-        if (input.includes("#")) {
-            username = input.split("#").pop().trim();
-        } else if (input.includes("@")) {
-            username = input.split("@").pop().split(":")[0];
-        } else {
-            username = input;
-        }
-
+        const userConfig = document.getElementById('usage-config').value;
+        if(!userConfig) return alert("Please enter your config name/user!");
+        
         const btn = document.querySelector('.btn-check-blue');
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-        const apiKey = "hyper_k8z2p9v5r3q1w7";
-        const targetUrl = `https://usageapi.novalink.lk:5003/usage?user=${username}&key=${apiKey}`;
         
-        // Using corsproxy.io to bypass CORS issues on Port 5003
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+        const apiKey = "hyper_k8z2p9v5r3q1w7";
+        const apiUrl = `https://usageapi.novalink.lk:5003/usage?user=${encodeURIComponent(userConfig)}&key=${apiKey}`;
 
         try {
-            const response = await fetch(proxyUrl);
-            const dataJson = await response.json();
+            const response = await fetch(apiUrl);
+            const data = await response.json();
 
-            if(dataJson && dataJson.success) {
-                const data = dataJson.data;
+            if(data.status === "success") {
                 document.getElementById('usage-alert').classList.remove('hidden');
                 document.getElementById('usage-output').classList.remove('hidden');
                 
-                // Convert bytes to GB
-                const usageGB = (data.usage / (1024**3)).toFixed(2);
+                // Mapping API data to UI
+                document.getElementById('u-data-text').innerText = `${data.used_data} / ${data.total_data}`;
+                document.getElementById('u-bar').style.width = data.percentage;
+                document.getElementById('u-rem').innerText = data.remaining_days;
+                document.getElementById('u-exp').innerText = data.expiry_date;
                 
-                document.getElementById('u-data-text').innerText = `${usageGB} GB / Unlimited`;
-                document.getElementById('u-status').innerText = data.status.toUpperCase();
+                const statusBadge = document.getElementById('u-status');
+                statusBadge.innerText = data.account_status.toUpperCase();
                 
-                // Progress Bar (Arbitrary 100GB target for visualization)
-                let percent = Math.min((usageGB / 100) * 100, 100);
-                document.getElementById('u-bar').style.width = percent + "%";
-                
-                document.getElementById('u-rem').innerText = data.remaining;
-                document.getElementById('u-exp').innerText = data.expiry === 0 ? "No Expiry" : data.expiry;
+                // Optional: Change badge color based on status
+                if(data.account_status.toLowerCase() !== "active") {
+                    statusBadge.style.background = "#fee2e2";
+                    statusBadge.style.color = "#991b1b";
+                } else {
+                    statusBadge.style.background = "#dcfce7";
+                    statusBadge.style.color = "#15803d";
+                }
+
             } else {
-                alert("Client Found වුණේ නැත! Username එක පරීක්ෂා කරන්න.");
+                alert("User not found or API Error: " + data.message);
+                document.getElementById('usage-output').classList.add('hidden');
             }
         } catch (error) {
             console.error("API Error:", error);
-            alert("සම්බන්ධතාවය අසාර්ථක විය!");
+            alert("Failed to fetch data. Please try again later.");
         } finally {
             btn.innerHTML = '<i class="fas fa-search"></i>';
         }
     }
-    // NOVA LINK API INTEGRATION END
 
     function toggleAuth() { isLoginMode = !isLoginMode; showAuthMode(isLoginMode ? 'login' : 'reg'); }
     function showAuthMode(mode) {
